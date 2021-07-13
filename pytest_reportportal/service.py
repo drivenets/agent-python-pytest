@@ -1,10 +1,8 @@
 import logging
-import sys
-import traceback
-from time import time
-
 import pkg_resources
 import pytest
+import sys
+import traceback
 from _pytest.doctest import DoctestItem
 from _pytest.main import Session
 from _pytest.nodes import File, Item
@@ -13,6 +11,7 @@ from _pytest.unittest import TestCaseFunction, UnitTestCase
 from reportportal_client import ReportPortalServiceAsync
 from six import with_metaclass
 from six.moves import queue
+from time import time
 
 log = logging.getLogger(__name__)
 
@@ -189,6 +188,21 @@ class PyTestServiceClass(with_metaclass(Singleton, object)):
                 else:
                     self._hier_parts[part]["finish_counter"] += 1
 
+    def update_tests_collection(self, session, suite_name):
+        """
+        This method updates the modifications that may be done on the session.items list during Run-Time
+        :param session: pytest.Session
+        :param suite_name: The suite name which its should be be re-collected
+        """
+        self._hier_parts = {}
+        self._item_parts = {}
+        self.collect_tests(session)
+        suite_key = next((_key for _key in self._hier_parts.keys() if _key.name == suite_name), None)
+        if not suite_key:
+            raise RuntimeError(f"Could not find any suite with the name '{suite_name}' among the collected suites "
+                               f"under the report portal attributes")
+        self._hier_parts[suite_key]["start_flag"] = True
+
     def start_pytest_item(self, test_item=None):
         self._stop_if_necessary()
         if self.RP is None:
@@ -236,12 +250,23 @@ class PyTestServiceClass(with_metaclass(Singleton, object)):
         log.debug('ReportPortal - Finish TestItem: request_body=%s', fta_rq)
         self.RP.finish_test_item(**fta_rq)
 
-        parts = self._item_parts[test_item]
+        if test_item not in self._item_parts:
+            return
+
+        parts = self._item_parts.get(test_item, [])
+        if not parts:
+            parts = [next(hier_part for hier_part in self._hier_parts if hier_part.cls == test_item.cls)]
         while len(parts) > 0:
             part = parts.pop()
             if status == "FAILED":
                 part._rp_result = status
-            self._hier_parts[part]["finish_counter"] -= 1
+            if isinstance(part, pytest.Class):
+                suite_tests = [item for item in part.session.items if item.cls == test_item.cls]
+                if test_item in suite_tests:
+                    finish_counter = len(suite_tests) - (suite_tests.index(test_item) + 1)
+                    self._hier_parts[part]["finish_counter"] = finish_counter
+            else:
+                self._hier_parts[part]["finish_counter"] -= 1
             if self._hier_parts[part]["finish_counter"] > 0:
                 continue
             payload = {
