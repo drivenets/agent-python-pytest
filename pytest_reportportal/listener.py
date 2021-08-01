@@ -1,6 +1,8 @@
 import cgi
 import logging
+import sys
 
+import html
 import pytest
 
 try:
@@ -51,11 +53,18 @@ class RPReportListener(object):
                                                not report.passed
 
         if report.longrepr and not is_failed_teardown_after_failed_test:
-            self.PyTestService.post_log(
-                # Used for support python 2.7
-                cgi.escape(report.longreprtext),
-                loglevel='ERROR',
-            )
+            if sys.version_info >= (3, 8):
+                self.PyTestService.post_log(
+                    # Used for support python 3.8 and above
+                    html.escape(report.longreprtext),
+                    loglevel='ERROR',
+                )
+            else:
+                self.PyTestService.post_log(
+                    # Used for support python 2.7
+                    cgi.escape(report.longreprtext),
+                    loglevel='ERROR',
+                )
 
         if report.when == 'setup':
             self.result = None
