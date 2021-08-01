@@ -57,11 +57,16 @@ def pytest_sessionstart(session):
             verify_ssl=session.config.getini('rp_verify_ssl')
         )
 
-        session.config.py_test_service.start_launch(
-            session.config.option.rp_launch,
-            tags=session.config.getini('rp_launch_tags'),
-            description=session.config.option.rp_launch_description
-        )
+        launch_id = session.config.option.rp_launch_id
+        if launch_id:
+            session.config.py_test_service.update_existing_launch(launch_id)
+        else:
+            session.config.py_test_service.start_launch(
+                session.config.option.rp_launch,
+                tags=session.config.getini('rp_launch_tags'),
+                description=session.config.option.rp_launch_description
+            )
+
         if session.config.pluginmanager.hasplugin('xdist'):
             wait_launch(session.config.py_test_service.RP.rp_client)
 
@@ -116,7 +121,7 @@ def pytest_sessionfinish(session):
 
     # FixMe: currently method of RP api takes the string parameter
     # so it is hardcoded
-    if is_master(session.config):
+    if is_master(session.config) and not session.config.option.rp_avoid_launch_termination:
         session.config.py_test_service.finish_launch(status='RP_Launch')
 
     session.config.py_test_service.terminate_service()
@@ -184,6 +189,20 @@ def pytest_addoption(parser):
         help='Launch description (overrides rp_launch_description config option)')
 
     group.addoption(
+        '--rp-launch-id',
+        action='store',
+        dest='rp_launch_id',
+        help='Launch Id (overrides rp_launch_id config option)')
+
+    group.addoption(
+        '--rp-avoid-launch-termination',
+        action='store_true',
+        dest='rp_avoid_launch_termination',
+        default=False,
+        help='Enables to avoid the launch termination at the end of the run'
+    )
+
+    group.addoption(
         '--reportportal',
         action='store_true',
         dest='rp_enabled',
@@ -220,6 +239,10 @@ def pytest_addoption(parser):
         'rp_launch',
         default='Pytest Launch',
         help='Launch name')
+
+    parser.addini(
+        'rp_launch_id',
+        help='Launch ID')
 
     parser.addini(
         'rp_launch_tags',
@@ -305,3 +328,9 @@ def pytest_addoption(parser):
         help="In case of True, include the suite's relative file path in the launch name as a convention of "
              "'<RELATIVE_FILE_PATH>::<SUITE_NAME>'. In case of False, set the launch name to be the suite name "
              "only - this flag is relevant only when 'rp_hierarchy_module' flag is set to False")
+
+    parser.addini(
+        'rp_avoid_launch_termination',
+        default=False,
+        type='bool',
+        help='Enables to avoid the launch termination at the end of the run')
