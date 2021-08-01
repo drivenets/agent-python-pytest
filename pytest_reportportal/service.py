@@ -110,6 +110,9 @@ class PyTestServiceClass(with_metaclass(Singleton, object)):
             self.RP.terminate(nowait)
             self.RP = None
 
+    def update_existing_launch(self, launch_id):
+        self.RP.update_existing_launch(launch_id)
+
     def start_launch(self, launch_name,
                      mode=None,
                      tags=None,
