@@ -1,17 +1,23 @@
 import threading
 
+# save the old thread
+old_thread = threading.Thread
+
+
+class MyThread(threading.Thread):
+    """
+    Overwrite the __init__ method of the Threading class in order to save the self.parent attribute
+    """
+    def __init__(self, *args, **kwargs):
+        old_thread.__init__(self, *args, **kwargs)
+        self.parent = threading.current_thread()
+
 
 def set_new_thread_init_method():
     """
-    Override the existing init method of the threading.Thread class in order for it to have the self.parent attribute
+    Monkey patch the new Thread class with the modified init method
     """
-    old_init = threading.Thread.__init__
-
-    def new_thread_init(self, *args, **kwargs):
-        old_init(self, *args, **kwargs)
-        self.parent = threading.current_thread()
-
-    threading.Thread.__init__ = new_thread_init
+    threading.Thread = MyThread
 
 
 def set_new_thread_run_method(rp_client):
